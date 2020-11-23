@@ -6,11 +6,13 @@ const timeout = require('delay');
 // CLI Args
 const url = argv.url || 'https://www.google.com';
 const format = argv.format === 'jpeg' ? 'jpeg' : 'png';
-const viewportWidth = argv.viewportWidth || 1440;
+let viewportWidth = argv.viewportWidth || 1440;
 let viewportHeight = argv.viewportHeight || 900;
 const delay = argv.delay || 0;
 const userAgent = argv.userAgent;
 const fullPage = argv.full;
+const selector = argv.selector || '';
+const nth = argv.nth || 0;
 const outputDir = argv.outputDir || './';
 const output = argv.output || `output.${format === 'png' ? 'png' : 'jpg'}`;
 
@@ -64,27 +66,78 @@ async function init() {
 
     await timeout(delay);
 
+    viewportX = 0
+    viewportY = 0
+    viewportScale = 1
+
     // If the `full` CLI option was passed, we need to measure the height of
     // the rendered page and use Emulation.setVisibleSize
     if (fullPage) {
-      const {root: {nodeId: documentNodeId}} = await DOM.getDocument();
-      const {nodeId: bodyNodeId} = await DOM.querySelector({
-        selector: 'body',
-        nodeId: documentNodeId,
-      });
+      const doc = await DOM.getDocument();
+      const {root: {nodeId: documentNodeId}} = doc;
+      const {nodeId: bodyNodeId} = await DOM.querySelector({ selector: 'body', nodeId: documentNodeId });
       const {model} = await DOM.getBoxModel({nodeId: bodyNodeId});
       viewportHeight = model.height;
 
       await Emulation.setVisibleSize({width: viewportWidth, height: viewportHeight});
       // This forceViewport call ensures that content outside the viewport is
       // rendered, otherwise it shows up as grey. Possibly a bug?
-      await Emulation.forceViewport({x: 0, y: 0, scale: 1});
+      //await Emulation.forceViewport({x: viewportX, y: viewportY, scale: viewportScale});
+    }
+    if (selector) {
+      await Runtime.evaluate({ expression: `$("${selector}")[${nth}].scrollIntoView()` });
+      await timeout(500);
+      const doc = await DOM.getDocument();
+      const {root: {nodeId: documentNodeId}} = doc;
+      const nodeId = (await DOM.querySelectorAll({ selector: selector, nodeId: documentNodeId })).nodeIds[nth];
+      const {model} = await DOM.getBoxModel({nodeId});
+/*
+> dashboardModel = await DOM.getBoxModel({nodeId: dashboardId});
+{
+  model: {
+    content: [
+      76,   71, 1424,
+      71, 1424, 1203,
+      76, 1203
+    ],
+    padding: [
+      60,   55, 1440,
+      55, 1440, 1219,
+      60, 1219
+    ],
+    border: [
+      60,   55, 1440,
+      55, 1440, 1219,
+      60, 1219
+    ],
+    margin: [
+      60,   55, 1440,
+      55, 1440, 1219,
+      60, 1219
+    ],
+    width: 1380,
+    height: 1164
+  }
+}
+*/
+      viewportX = model.content[0]; // use padding or margin if spacing is desired
+      viewportY = model.content[1];
+      viewportWidth = model.width;
+      viewportHeight = model.height;
+      viewportScale = 2;
+      await Emulation.setVisibleSize({width: viewportWidth, height: viewportHeight});
+      // This forceViewport call ensures that content outside the viewport is
+      // rendered, otherwise it shows up as grey. Possibly a bug?
+      //await Emulation.forceViewport({x: viewportX, y: viewportY, scale: viewportScale});
     }
 
     const screenshot = await Page.captureScreenshot({
       format,
       fromSurface: true,
       clip: {
+        x: viewportX,
+        y: viewportY,
+        scale: viewportScale,
         width: viewportWidth,
         height: viewportHeight
       }

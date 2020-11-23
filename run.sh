@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-google-chrome --headless --hide-scrollbars --remote-debugging-port=9222 --no-sandbox --disable-gpu &
+#google-chrome --headless --hide-scrollbars --remote-debugging-port=9222 --no-sandbox --disable-gpu &
+chrome --headless --hide-scrollbars --remote-debugging-port=9222 --no-sandbox --disable-gpu &
 
 # wait until the debug port opens
 while : ; do
@@ -10,4 +11,5 @@ while : ; do
   sleep 1
 done
 
-node index.js --outputDir=/var/output/ "$@"
+#node index.js --outputDir=/var/output/ "$@"
+node index.js "$@"
